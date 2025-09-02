@@ -132,7 +132,7 @@ aws route53 change-resource-record-sets --hosted-zone-id YOUR_ZONE_ID \
 
 ### Environment Variables
 ```bash
-OPENAI_API_KEY=gsk_...           # Groq API key
+OPENAI_API_KEY=your_groq_api_key_here    # Groq API key
 OPENAI_API_HOST=https://api.groq.com/openai
 DEFAULT_MODEL=llama-3.1-8b-instant
 NODE_ENV=production
