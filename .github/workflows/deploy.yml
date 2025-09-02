@@ -1,0 +1,60 @@
+name: Deploy Groq Bot
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: groq-bot-clone
+  EKS_CLUSTER_NAME: groq-bot-eks-cluster
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Build and push Docker image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker buildx build \
+          --platform linux/amd64,linux/arm64 \
+          --file Dockerfile.simple \
+          --tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+          --tag $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+          --push .
+
+    - name: Update kubeconfig
+      run: |
+        aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME
+
+    - name: Deploy to EKS
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        sed -i "s|739275449845.dkr.ecr.us-east-1.amazonaws.com/groq-bot-clone:v1.1.0|$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG|g" k8s/groq-bot-deployment.yaml
+        kubectl apply -f k8s/groq-bot-deployment.yaml
+        kubectl apply -f k8s/groq-bot-ingress.yaml
+        kubectl rollout status deployment/groq-bot -n groq-bot --timeout=300s

@@ -5,6 +5,7 @@ node_modules/
 
 # Testing
 coverage/
+.nyc_output
 
 # Next.js
 .next/
@@ -25,6 +26,7 @@ dist/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+lerna-debug.log*
 
 # Runtime data
 pids
@@ -56,3 +58,9 @@ secret-*.yaml
 # AWS credentials
 .aws/
 credentials
+
+# CI/CD
+.github/secrets/
+
+# Docker
+.dockerignore

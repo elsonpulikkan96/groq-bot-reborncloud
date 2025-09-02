@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  groq-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.simple
+    ports:
+      - "3000:3000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_API_HOST=https://api.groq.com/openai
+      - DEFAULT_MODEL=llama-3.1-8b-instant
+      - NODE_ENV=development
+    volumes:
+      - .:/app
+      - /app/node_modules
+    restart: unless-stopped
