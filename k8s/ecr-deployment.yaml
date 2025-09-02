@@ -1,0 +1,114 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: chatbot-ui
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: chatbot-ui-sa
+  namespace: chatbot-ui
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::739275449845:role/chatbot-ui-secrets-role
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatbot-ui
+  namespace: chatbot-ui
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: chatbot-ui
+  template:
+    metadata:
+      labels:
+        app: chatbot-ui
+    spec:
+      serviceAccountName: chatbot-ui-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+      containers:
+      - name: chatbot-ui
+        image: 739275449845.dkr.ecr.us-east-1.amazonaws.com/openai-gptbotclone:v1.0.0-84c721d
+        ports:
+        - containerPort: 3000
+        env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openai-secret
+              key: OPENAI_API_KEY
+        - name: NODE_ENV
+          value: "production"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1001
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
+---
+apiVersion: external-secrets.io/v1beta1
+kind: SecretStore
+metadata:
+  name: aws-secrets-store
+  namespace: chatbot-ui
+spec:
+  provider:
+    aws:
+      service: SecretsManager
+      region: us-east-1
+      auth:
+        jwt:
+          serviceAccountRef:
+            name: chatbot-ui-sa
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: openai-external-secret
+  namespace: chatbot-ui
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-store
+    kind: SecretStore
+  target:
+    name: openai-secret
+    creationPolicy: Owner
+  data:
+  - secretKey: OPENAI_API_KEY
+    remoteRef:
+      key: openai-gptbotclone
+      property: OPENAI_API_KEY
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chatbot-ui-service
+  namespace: chatbot-ui
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 3000
+  selector:
+    app: chatbot-ui
